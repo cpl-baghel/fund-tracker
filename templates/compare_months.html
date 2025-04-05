@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ fund.fund_name }} - Compare Months</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .status-added { color: #198754; }
+        .status-removed { color: #dc3545; }
+        .status-increased { color: #0d6efd; }
+        .status-decreased { color: #fd7e14; }
+        .status-unchanged { color: #6c757d; }
+        
+        .change-positive { color: #198754; }
+        .change-negative { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/">Home</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('view_fund', fund_id=fund.id) }}">{{ fund.fund_name }}</a></li>
+                <li class="breadcrumb-item active">Compare Months</li>
+            </ol>
+        </nav>
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>{{ fund.fund_name }} - Monthly Comparison</h1>
+            <div>
+                <a href="{{ url_for('view_fund', fund_id=fund.id) }}" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-left"></i> Back to Fund
+                </a>
+            </div>
+        </div>
+
+        <!-- Month Selection Form -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Select Months to Compare</h5>
+            </div>
+            <div class="card-body">
+                <form method="GET" action="{{ url_for('compare_months', fund_id=fund.id) }}" class="row g-3">
+                    <div class="col-md-5">
+                        <label for="month1" class="form-label">Month 1 (From)</label>
+                        <select class="form-select" id="month1" name="month1">
+                            {% for month in available_months %}
+                                <option value="{{ month }}" {% if month == month1 %}selected{% endif %}>
+                                    {{ month }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-5">
+                        <label for="month2" class="form-label">Month 2 (To)</label>
+                        <select class="form-select" id="month2" name="month2">
+                            {% for month in available_months %}
+                                <option value="{{ month }}" {% if month == month2 %}selected{% endif %}>
+                                    {{ month }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">Compare</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {% if month1 and month2 %}
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0">Sector Allocation Comparison</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <canvas id="sectorComparisonChart" height="250"></canvas>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                        <table class="table table-sm table-striped">
+                                            <thead>
+                                                <tr>
+                                                    <th>Sector</th>
+                                                    <th>{{ month1 }}</th>
+                                                    <th>{{ month2 }}</th>
+                                                    <th>Change</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for sector, data in sector_comparison.items() %}
+                                                    <tr>
+                                                        <td>{{ sector }}</td>
+                                                        <td>{{ "%.2f"|format(data.month1_total) }}%</td>
+                                                        <td>{{ "%.2f"|format(data.month2_total) }}%</td>
+                                                        <td class="{% if data.change > 0 %}change-positive{% elif data.change < 0 %}change-negative{% endif %}">
+                                                            {{ "%.2f"|format(data.change) }}%
+                                                        </td>
+                                                    </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Holdings Changes ({{ month2 }} to {{ month1 }})</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Company</th>
+                                    <th>Sector</th>
+                                    <th>{{ month2 }}</th>
+                                    <th>{{ month1 }}</th>
+                                    <th>Change</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in comparison_data %}
+                                    <tr>
+                                        <td>{{ item.company }}</td>
+                                        <td>{{ item.sector }}</td>
+                                        <td>{{ "%.2f"|format(item.month2_percentage) }}%</td>
+                                        <td>{{ "%.2f"|format(item.month1_percentage) }}%</td>
+                                        <td class="{% if item.change > 0 %}change-positive{% elif item.change < 0 %}change-negative{% endif %}">
+                                            {{ "%.2f"|format(item.change) }}%
+                                        </td>
+                                        <td>
+                                            <span class="badge status-{{ item.status|lower }}">
+                                                {{ item.status }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                <h4 class="alert-heading">Need Two Months to Compare</h4>
+                <p>You need at least two months with holdings data to make a comparison. Please add holdings for multiple months.</p>
+            </div>
+        {% endif %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    {% if month1 and month2 and sector_comparison %}
+    <script>
+        // Prepare data for sector comparison chart
+        const sectors = [];
+        const month1Values = [];
+        const month2Values = [];
+        
+        {% for sector, data in sector_comparison.items() %}
+            sectors.push('{{ sector }}');
+            month1Values.push({{ data.month1_total }});
+            month2Values.push({{ data.month2_total }});
+        {% endfor %}
+        
+        // Create sector comparison chart
+        const sectorComparisonCtx = document.getElementById('sectorComparisonChart').getContext('2d');
+        
+        new Chart(sectorComparisonCtx, {
+            type: 'bar',
+            data: {
+                labels: sectors,
+                datasets: [
+                    {
+                        label: '{{ month1 }}',
+                        data: month1Values,
+                        backgroundColor: 'rgba(13, 110, 253, 0.7)',
+                        borderColor: 'rgba(13, 110, 253, 1)',
+                        borderWidth: 1
+                    },
+                    {
+                        label: '{{ month2 }}',
+                        data: month2Values,
+                        backgroundColor: 'rgba(220, 53, 69, 0.7)',
+                        borderColor: 'rgba(220, 53, 69, 1)',
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Allocation (%)'
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+    {% endif %}
+</body>
+</html> 

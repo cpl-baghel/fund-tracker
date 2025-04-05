@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Fund - {{ fund.fund_name }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .navbar {
+            background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+        }
+        .card {
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            border: none;
+            border-radius: 10px;
+        }
+        .card-header {
+            background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+            color: white;
+            border-radius: 10px 10px 0 0 !important;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+            border: none;
+        }
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #0a58ca 0%, #084298 100%);
+        }
+        .form-control:focus {
+            border-color: #0d6efd;
+            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+        }
+        .holdings-table {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-graph-up"></i> Mutual Fund Holdings Tracker
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('view_fund', fund_id=fund.id) }}">
+                            <i class="bi bi-arrow-left"></i> Back to Fund
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/">Home</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('view_fund', fund_id=fund.id) }}">{{ fund.fund_name }}</a></li>
+                <li class="breadcrumb-item active">Edit</li>
+            </ol>
+        </nav>
+        
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h3 class="card-title mb-0">Edit Fund</h3>
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('update_fund', fund_id=fund.id) }}" method="post">
+                    <div class="mb-3">
+                        <label for="fund_name" class="form-label">Fund Name</label>
+                        <input type="text" class="form-control" id="fund_name" name="fund_name" value="{{ fund.fund_name }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="category" class="form-label">Category</label>
+                        <select class="form-select" id="category" name="category">
+                            <option value="">Select Category</option>
+                            {% for cat in categories %}
+                                <option value="{{ cat }}" {% if cat == fund.fund_category %}selected{% endif %}>{{ cat }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="fund_house" class="form-label">Fund House</label>
+                        <input type="text" class="form-control" id="fund_house" name="fund_house" value="{{ fund.fund_house }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="fund_manager" class="form-label">Fund Manager</label>
+                        <input type="text" class="form-control" id="fund_manager" name="fund_manager" value="{{ fund.fund_manager }}">
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('view_fund', fund_id=fund.id) }}" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Holdings Management -->
+        <div class="card mt-4">
+            <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                <h3 class="card-title mb-0">Manage Holdings</h3>
+                <div>
+                    <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#addHoldingModal">
+                        <i class="bi bi-plus-circle"></i> Add Holding
+                    </button>
+                    <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#importHoldingsModal">
+                        <i class="bi bi-upload"></i> Import
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <select class="form-select" id="monthSelector" onchange="changeMonth(this.value)">
+                        {% if months %}
+                            {% for month in months %}
+                                <option value="{{ month.month_year }}" {% if month.month_year == selected_month %}selected{% endif %}>
+                                    {{ month.month_year }}
+                                </option>
+                            {% endfor %}
+                            <option value="new">+ Add New Month</option>
+                        {% else %}
+                            <option value="">No months available</option>
+                            <option value="new">+ Add New Month</option>
+                        {% endif %}
+                    </select>
+                </div>
+                
+                {% if selected_month %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Company</th>
+                                    <th>Sector</th>
+                                    <th class="text-end">Percentage</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for holding in holdings %}
+                                    <tr>
+                                        <td>{{ holding.company_name }}</td>
+                                        <td>{{ holding.sector }}</td>
+                                        <td class="text-end">{{ "%.2f"|format(holding.percentage) }}%</td>
+                                        <td class="text-end">
+                                            <a href="{{ url_for('delete_holding', holding_id=holding.id) }}" 
+                                              class="btn btn-sm btn-danger"
+                                              onclick="return confirm('Are you sure you want to delete this holding?')">
+                                                <i class="bi bi-trash"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                {% else %}
+                                    <tr>
+                                        <td colspan="4" class="text-center">No holdings for this month</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        Select a month or add a new month to manage holdings
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Holding Modal -->
+    <div class="modal fade" id="addHoldingModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Holding</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form action="{{ url_for('add_holding', fund_id=fund.id) }}" method="POST">
+                        <div class="mb-3">
+                            <label for="month_year" class="form-label">Month (YYYY-MM)</label>
+                            <input type="text" class="form-control" id="month_year" name="month_year" 
+                                  value="{{ selected_month or '' }}" placeholder="2023-01" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="company_name" class="form-label">Company Name</label>
+                            <input type="text" class="form-control" id="company_name" name="company_name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="sector" class="form-label">Sector</label>
+                            <select class="form-select" id="sector" name="sector" required>
+                                <option value="">Select Sector</option>
+                                <option value="Financials">Financials (Banks, NBFCs, Insurance)</option>
+                                <option value="Information Technology">Information Technology</option>
+                                <option value="Healthcare">Healthcare & Pharma</option>
+                                <option value="Consumer Goods">Consumer Goods (FMCG)</option>
+                                <option value="Energy">Energy (Oil & Gas, Power)</option>
+                                <option value="Consumer Discretionary">Consumer Discretionary (Auto, Retail)</option>
+                                <option value="Industrials">Industrials (Capital Goods, Engineering)</option>
+                                <option value="Telecom">Telecom & Communication</option>
+                                <option value="Materials">Materials (Cement, Metals, Steel)</option>
+                                <option value="Real Estate">Real Estate & Construction</option>
+                                <option value="Utilities">Utilities (Electricity, Water, Gas)</option>
+                                <option value="Media & Entertainment">Media & Entertainment</option>
+                                <option value="Transportation & Logistics">Transportation & Logistics</option>
+                                <option value="Chemicals">Chemicals & Fertilizers</option>
+                                <option value="Infrastructure">Infrastructure (Roads, Ports)</option>
+                                <option value="Hospitality & Tourism">Hospitality & Tourism</option>
+                                <option value="Defense & Aerospace">Defense & Aerospace</option>
+                                <option value="Agriculture">Agriculture & Allied</option>
+                                <option value="Education">Education & EdTech</option>
+                                <option value="Retail & E-commerce">Retail & E-commerce</option>
+                                <option value="Luxury & Lifestyle">Luxury & Lifestyle</option>
+                                <option value="Others">Others</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="percentage" class="form-label">Percentage</label>
+                            <input type="number" step="0.01" class="form-control" id="percentage" name="percentage" required>
+                            <div class="form-text">Enter the percentage weight (e.g., 5.25 for 5.25%)</div>
+                        </div>
+                        <div class="text-end">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Add Holding</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Holdings Modal -->
+    <div class="modal fade" id="importHoldingsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Import Holdings</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form action="{{ url_for('import_holdings', fund_id=fund.id) }}" method="POST" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="month_year" class="form-label">Month (YYYY-MM)</label>
+                            <input type="text" class="form-control" id="import_month_year" name="month_year" placeholder="YYYY-MM" pattern="\d{4}-\d{2}" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="holdings_file" class="form-label">Holdings CSV/Excel File</label>
+                            <input type="file" class="form-control" id="holdings_file" name="holdings_file" accept=".csv,.xls,.xlsx" required>
+                            <div class="form-text">CSV file should have columns: company_name, sector, percentage</div>
+                            <div class="mt-2">
+                                <a href="{{ url_for('download_sample_mutual_fund') }}" class="btn btn-sm btn-outline-info">
+                                    <i class="bi bi-download"></i> Download Sample Format
+                                </a>
+                                <a href="{{ url_for('download_historical_mutual_fund_sample') }}" class="btn btn-sm btn-outline-success">
+                                    <i class="bi bi-download"></i> Download Historical Sample (Last 4 Quarters)
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="text-end">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Import</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Function to handle month change
+        function changeMonth(month) {
+            if (month === 'new') {
+                const newMonth = prompt("Enter new month (YYYY-MM format):", "");
+                if (newMonth) {
+                    document.getElementById('month_year').value = newMonth;
+                    document.getElementById('import_month_year').value = newMonth;
+                    // Open the add holding modal
+                    var addModal = new bootstrap.Modal(document.getElementById('addHoldingModal'));
+                    addModal.show();
+                }
+                return;
+            }
+            window.location.href = "{{ url_for('edit_fund', fund_id=fund.id) }}" + "?month=" + month;
+        }
+    </script>
+</body>
+</html> 

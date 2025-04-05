@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ account.account_name }} - Demat Account</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container mt-4">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/">Home</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('demat_accounts') }}">Demat Accounts</a></li>
+                <li class="breadcrumb-item active">{{ account.account_name }}</li>
+            </ol>
+        </nav>
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>{{ account.account_name }}</h1>
+            <div>
+                <button class="btn btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#addHoldingModal">
+                    <i class="bi bi-plus-circle"></i> Add Holding
+                </button>
+                <button class="btn btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#importHoldingsModal">
+                    <i class="bi bi-upload"></i> Import Holdings
+                </button>
+                <form action="{{ url_for('update_account_prices', account_id=account.id) }}" method="POST" class="d-inline">
+                    <button type="submit" class="btn btn-outline-warning me-2">
+                        <i class="bi bi-arrow-repeat"></i> Update Prices
+                    </button>
+                </form>
+                <a href="{{ url_for('export_demat_holdings', account_id=account.id) }}" class="btn btn-outline-success me-2">
+                    <i class="bi bi-download"></i> Export CSV
+                </a>
+                <a href="{{ url_for('portfolio_overview') }}" class="btn btn-outline-success">
+                    <i class="bi bi-pie-chart"></i> Portfolio Overview
+                </a>
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Account Summary -->
+        <div class="row mb-4">
+            <div class="col-md-7">
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        Account Information
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-striped">
+                            <tbody>
+                                <tr>
+                                    <th width="30%">Account Name</th>
+                                    <td>{{ account.account_name }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Broker</th>
+                                    <td>{{ account.broker }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Account Number</th>
+                                    <td>{{ account.account_number }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Total Holdings</th>
+                                    <td>{{ holdings|length }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Total Value</th>
+                                    <td>₹{{ "{:,.2f}".format(total_value) }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Total Invested</th>
+                                    <td>₹{{ "{:,.2f}".format(total_invested) }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Gain/Loss</th>
+                                    <td class="{% if gain_value > 0 %}text-success{% elif gain_value < 0 %}text-danger{% endif %}">
+                                        ₹{{ "{:,.2f}".format(gain_value) }} 
+                                        ({{ "%.2f"|format(gain_percent) }}%)
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Created On</th>
+                                    <td>{{ account.created_at }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="mt-3">
+                            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editAccountModal">
+                                <i class="bi bi-pencil"></i> Edit Account Details
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-5">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        Sector Allocation
+                    </div>
+                    <div class="card-body">
+                        {% if sectors %}
+                            <canvas id="sectorChart" height="260"></canvas>
+                        {% else %}
+                            <div class="alert alert-info">
+                                No holdings data available to display sector allocation.
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Holdings Table -->
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Portfolio Holdings</h5>
+            </div>
+            <div class="card-body">
+                {% if holdings %}
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Company</th>
+                                    <th>Symbol</th>
+                                    <th class="text-center">Quantity</th>
+                                    <th class="text-end">Purchase Price</th>
+                                    <th class="text-end">Current Price</th>
+                                    <th class="text-end">Current Value</th>
+                                    <th class="text-end">Profit/Loss</th>
+                                    <th>Sector</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for holding in holdings %}
+                                    {% set current_value = holding.quantity * holding.current_price %}
+                                    {% set purchase_value = holding.quantity * holding.purchase_price %}
+                                    {% set profit_loss = current_value - purchase_value %}
+                                    {% set profit_loss_percent = (profit_loss / purchase_value) * 100 if purchase_value > 0 else 0 %}
+                                    
+                                    <tr>
+                                        <td>{{ holding.company_name }}</td>
+                                        <td>{{ holding.symbol }}</td>
+                                        <td class="text-center">{{ holding.quantity }}</td>
+                                        <td class="text-end">₹{{ "%.2f"|format(holding.purchase_price) }}</td>
+                                        <td class="text-end">₹{{ "%.2f"|format(holding.current_price) }}</td>
+                                        <td class="text-end">₹{{ "{:,.2f}".format(current_value) }}</td>
+                                        <td class="text-end {% if profit_loss > 0 %}text-success{% elif profit_loss < 0 %}text-danger{% endif %}">
+                                            ₹{{ "{:,.2f}".format(profit_loss) }}
+                                            <small>({{ "%.2f"|format(profit_loss_percent) }}%)</small>
+                                        </td>
+                                        <td>{{ holding.sector }}</td>
+                                        <td class="text-end">
+                                            <button class="btn btn-sm btn-outline-primary edit-holding" 
+                                                    data-bs-toggle="modal" 
+                                                    data-bs-target="#editHoldingModal"
+                                                    data-id="{{ holding.id }}"
+                                                    data-company="{{ holding.company_name }}"
+                                                    data-symbol="{{ holding.symbol }}"
+                                                    data-quantity="{{ holding.quantity }}"
+                                                    data-purchase="{{ holding.purchase_price }}"
+                                                    data-current="{{ holding.current_price }}"
+                                                    data-sector="{{ holding.sector }}">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <a href="{{ url_for('delete_demat_holding', holding_id=holding.id) }}" 
+                                               class="btn btn-sm btn-outline-danger"
+                                               onclick="return confirm('Are you sure you want to delete this holding?')">
+                                                <i class="bi bi-trash"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        <p>No holdings added yet. Click "Add Holding" to start building your portfolio.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Sector Allocation Table -->
+        {% if sectors %}
+            <div class="card mt-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Sector-wise Allocation</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Sector</th>
+                                    <th class="text-end">Allocation Value</th>
+                                    <th class="text-end">Percentage</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for sector in sectors %}
+                                    <tr>
+                                        <td>{{ sector.sector }}</td>
+                                        <td class="text-end">₹{{ "{:,.2f}".format(sector.value) }}</td>
+                                        <td class="text-end">{{ "%.2f"|format(sector.percentage) }}%</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Add Holding Modal -->
+    <div class="modal fade" id="addHoldingModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Holding</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form action="{{ url_for('add_demat_holding', account_id=account.id) }}" method="POST">
+                        <div class="mb-3">
+                            <label for="company_name" class="form-label">Company Name</label>
+                            <input type="text" class="form-control" id="company_name" name="company_name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="symbol" class="form-label">Symbol</label>
+                            <input type="text" class="form-control" id="symbol" name="symbol" placeholder="NSE/BSE Symbol">
+                        </div>
+                        <div class="mb-3">
+                            <label for="quantity" class="form-label">Quantity</label>
+                            <input type="number" class="form-control" id="quantity" name="quantity" required>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="purchase_price" class="form-label">Purchase Price</label>
+                                    <input type="number" step="0.01" class="form-control" id="purchase_price" name="purchase_price" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="current_price" class="form-label">Current Price</label>
+                                    <input type="number" step="0.01" class="form-control" id="current_price" name="current_price" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="sector" class="form-label">Sector</label>
+                            <select class="form-select" id="sector" name="sector">
+                                <option value="">Select Sector</option>
+                                <option value="Financials">Financials (Banks, NBFCs, Insurance)</option>
+                                <option value="Information Technology">Information Technology</option>
+                                <option value="Healthcare">Healthcare & Pharma</option>
+                                <option value="Consumer Goods">Consumer Goods (FMCG)</option>
+                                <option value="Energy">Energy (Oil & Gas, Power)</option>
+                                <option value="Consumer Discretionary">Consumer Discretionary (Auto, Retail)</option>
+                                <option value="Industrials">Industrials (Capital Goods, Engineering)</option>
+                                <option value="Telecom">Telecom & Communication</option>
+                                <option value="Materials">Materials (Cement, Metals, Steel)</option>
+                                <option value="Real Estate">Real Estate & Construction</option>
+                                <option value="Utilities">Utilities (Electricity, Water, Gas)</option>
+                                <option value="Media & Entertainment">Media & Entertainment</option>
+                                <option value="Transportation & Logistics">Transportation & Logistics</option>
+                                <option value="Chemicals">Chemicals & Fertilizers</option>
+                                <option value="Infrastructure">Infrastructure (Roads, Ports)</option>
+                                <option value="Hospitality & Tourism">Hospitality & Tourism</option>
+                                <option value="Defense & Aerospace">Defense & Aerospace</option>
+                                <option value="Agriculture">Agriculture & Allied</option>
+                                <option value="Education">Education & EdTech</option>
+                                <option value="Retail & E-commerce">Retail & E-commerce</option>
+                                <option value="Luxury & Lifestyle">Luxury & Lifestyle</option>
+                                <option value="Others">Others</option>
+                            </select>
+                        </div>
+                        <div class="text-end">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Add Holding</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Holding Modal (Will be populated by JavaScript) -->
+    <div class="modal fade" id="editHoldingModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Holding</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editHoldingForm" method="POST">
+                        <input type="hidden" id="edit_holding_id" name="holding_id">
+                        <div class="mb-3">
+                            <label for="edit_company_name" class="form-label">Company Name</label>
+                            <input type="text" class="form-control" id="edit_company_name" name="company_name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_symbol" class="form-label">Symbol</label>
+                            <input type="text" class="form-control" id="edit_symbol" name="symbol">
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_quantity" class="form-label">Quantity</label>
+                            <input type="number" class="form-control" id="edit_quantity" name="quantity" required>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="edit_purchase_price" class="form-label">Purchase Price</label>
+                                    <input type="number" step="0.01" class="form-control" id="edit_purchase_price" name="purchase_price" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="edit_current_price" class="form-label">Current Price</label>
+                                    <input type="number" step="0.01" class="form-control" id="edit_current_price" name="current_price" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_sector" class="form-label">Sector</label>
+                            <select class="form-select" id="edit_sector" name="sector">
+                                <option value="">Select Sector</option>
+                                <option value="Financials">Financials (Banks, NBFCs, Insurance)</option>
+                                <option value="Information Technology">Information Technology</option>
+                                <option value="Healthcare">Healthcare & Pharma</option>
+                                <option value="Consumer Goods">Consumer Goods (FMCG)</option>
+                                <option value="Energy">Energy (Oil & Gas, Power)</option>
+                                <option value="Consumer Discretionary">Consumer Discretionary (Auto, Retail)</option>
+                                <option value="Industrials">Industrials (Capital Goods, Engineering)</option>
+                                <option value="Telecom">Telecom & Communication</option>
+                                <option value="Materials">Materials (Cement, Metals, Steel)</option>
+                                <option value="Real Estate">Real Estate & Construction</option>
+                                <option value="Utilities">Utilities (Electricity, Water, Gas)</option>
+                                <option value="Media & Entertainment">Media & Entertainment</option>
+                                <option value="Transportation & Logistics">Transportation & Logistics</option>
+                                <option value="Chemicals">Chemicals & Fertilizers</option>
+                                <option value="Infrastructure">Infrastructure (Roads, Ports)</option>
+                                <option value="Hospitality & Tourism">Hospitality & Tourism</option>
+                                <option value="Defense & Aerospace">Defense & Aerospace</option>
+                                <option value="Agriculture">Agriculture & Allied</option>
+                                <option value="Education">Education & EdTech</option>
+                                <option value="Retail & E-commerce">Retail & E-commerce</option>
+                                <option value="Luxury & Lifestyle">Luxury & Lifestyle</option>
+                                <option value="Others">Others</option>
+                            </select>
+                        </div>
+                        <div class="text-end">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Holdings Modal -->
+    <div class="modal fade" id="importHoldingsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Import Holdings</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form action="{{ url_for('import_demat_holdings', account_id=account.id) }}" method="POST" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="holdings_file" class="form-label">Holdings File (CSV or Excel)</label>
+                            <input type="file" class="form-control" id="holdings_file" name="holdings_file" accept=".csv, .xls, .xlsx" required>
+                            <div class="form-text">
+                                Upload a CSV or Excel file with your holdings data.
+                                <a href="{{ url_for('download_sample_demat') }}" target="_blank">Download sample file</a>
+                            </div>
+                        </div>
+                        <div class="alert alert-info">
+                            <small>
+                                <strong>Required Columns:</strong> company_name, quantity, purchase_price, current_price<br>
+                                <strong>Optional Columns:</strong> symbol, sector
+                            </small>
+                        </div>
+                        <div class="text-end">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Import Holdings</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Account Modal -->
+    <div class="modal fade" id="editAccountModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Account Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form action="{{ url_for('edit_demat_account', account_id=account.id) }}" method="POST">
+                        <div class="mb-3">
+                            <label for="account_name" class="form-label">Account Name</label>
+                            <input type="text" class="form-control" id="account_name" name="account_name" value="{{ account.account_name }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="broker" class="form-label">Broker</label>
+                            <input type="text" class="form-control" id="broker" name="broker" value="{{ account.broker }}">
+                        </div>
+                        <div class="mb-3">
+                            <label for="account_number" class="form-label">Account Number</label>
+                            <input type="text" class="form-control" id="account_number" name="account_number" value="{{ account.account_number }}">
+                        </div>
+                        <div class="mb-3">
+                            <label for="initial_investment" class="form-label">Initial Investment (₹)</label>
+                            <input type="number" step="0.01" class="form-control" id="initial_investment" name="initial_investment" value="{{ account.initial_investment }}">
+                            <div class="form-text">Enter any additional cash or investments not included in individual holdings</div>
+                        </div>
+                        <div class="text-end">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Save Changes</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize sector chart with data from hidden container
+            if (document.getElementById('sectorChart')) {
+                try {
+                    var dataContainer = document.getElementById('chartData');
+                    var chartData = JSON.parse(dataContainer.getAttribute('data-sectors'));
+                    
+                    var ctx = document.getElementById('sectorChart').getContext('2d');
+                    var labels = [];
+                    var values = [];
+                    var colors = [];
+                    
+                    // Process chart data
+                    for (var i = 0; i < chartData.length; i++) {
+                        labels.push(chartData[i].sector);
+                        values.push(chartData[i].percentage);
+                        
+                        // Generate random color
+                        var color = '#';
+                        var letters = '0123456789ABCDEF';
+                        for (var j = 0; j < 6; j++) {
+                            color += letters[Math.floor(Math.random() * 16)];
+                        }
+                        colors.push(color);
+                    }
+                    
+                    // Create chart
+                    new Chart(ctx, {
+                        type: 'pie',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                data: values,
+                                backgroundColor: colors,
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                legend: {
+                                    position: 'right',
+                                    labels: {
+                                        boxWidth: 15
+                                    }
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            const label = context.label || '';
+                                            const value = context.parsed || 0;
+                                            return label + ': ' + (typeof value === 'number' ? value.toFixed(2) : '0.00') + '%';
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                } catch(e) {
+                    console.error("Error creating sector chart:", e);
+                }
+            }
+            
+            // Setup edit holding functionality
+            var editButtons = document.querySelectorAll('.edit-holding');
+            
+            editButtons.forEach(function(button) {
+                button.addEventListener('click', function() {
+                    var id = this.getAttribute('data-id');
+                    var company = this.getAttribute('data-company');
+                    var symbol = this.getAttribute('data-symbol');
+                    var quantity = this.getAttribute('data-quantity');
+                    var purchase = this.getAttribute('data-purchase');
+                    var current = this.getAttribute('data-current');
+                    var sector = this.getAttribute('data-sector');
+                    
+                    // Fill the edit form
+                    document.getElementById('edit_holding_id').value = id;
+                    document.getElementById('edit_company_name').value = company;
+                    document.getElementById('edit_symbol').value = symbol;
+                    document.getElementById('edit_quantity').value = quantity;
+                    document.getElementById('edit_purchase_price').value = purchase;
+                    document.getElementById('edit_current_price').value = current;
+                    
+                    // Set the select option
+                    var sectorSelect = document.getElementById('edit_sector');
+                    for (var i = 0; i < sectorSelect.options.length; i++) {
+                        if (sectorSelect.options[i].value === sector) {
+                            sectorSelect.selectedIndex = i;
+                            break;
+                        }
+                    }
+                    
+                    // Set the form action
+                    document.getElementById('editHoldingForm').action = '/edit_demat_holding/' + id;
+                });
+            });
+        });
+    </script>
+    
+    <!-- Hidden container for chart data -->
+    <div id="chartData" style="display:none;" data-sectors='{{ sectors|tojson if sectors else "[]" }}'></div>
+</body>
+</html> 

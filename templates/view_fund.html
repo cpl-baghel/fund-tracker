@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ fund.fund_name }} - Fund Details</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container mt-4">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/">Home</a></li>
+                <li class="breadcrumb-item active">{{ fund.fund_name }}</li>
+            </ol>
+        </nav>
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>{{ fund.fund_name }}</h1>
+            <div>
+                <a href="{{ url_for('edit_fund', fund_id=fund.id) }}" class="btn btn-outline-primary me-2">
+                    <i class="bi bi-pencil"></i> Edit
+                </a>
+                <a href="{{ url_for('fund_analysis', fund_id=fund.id) }}" class="btn btn-outline-info me-2">
+                    <i class="bi bi-bar-chart"></i> Analysis
+                </a>
+                <a href="{{ url_for('compare_months', fund_id=fund.id) }}" class="btn btn-outline-success me-2">
+                    <i class="bi bi-arrow-left-right"></i> Compare Months
+                </a>
+                <a href="{{ url_for('export_fund_holdings', fund_id=fund.id, month=selected_month) }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-download"></i> Export
+                </a>
+            </div>
+            <div class="dropdown float-end ms-2">
+                <button class="btn btn-outline-danger dropdown-toggle" type="button" id="actionMenu" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-three-dots-vertical"></i> More Actions
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="actionMenu">
+                    <li>
+                        <a class="dropdown-item" href="{{ url_for('edit_fund', fund_id=fund.id) }}">
+                            <i class="bi bi-pencil"></i> Edit Fund Details
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" href="{{ url_for('delete_fund', fund_id=fund.id) }}" 
+                           onclick="return confirm('Are you sure you want to delete this fund and ALL its holdings? This action cannot be undone.')">
+                            <i class="bi bi-trash"></i> Delete Fund
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Fund Basic Info -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        Fund Information
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-striped">
+                            <tbody>
+                                <tr>
+                                    <th width="30%">Fund Name</th>
+                                    <td>{{ fund.fund_name }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Category</th>
+                                    <td>{{ fund.fund_category }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Fund House</th>
+                                    <td>{{ fund.fund_house }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Fund Manager</th>
+                                    <td>{{ fund.fund_manager }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Created On</th>
+                                    <td>{{ fund.created_at }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Last Updated</th>
+                                    <td>{{ fund.last_updated }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        Quick Actions
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addHoldingModal">
+                                <i class="bi bi-plus-circle"></i> Add Holding
+                            </button>
+                            <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#importHoldingsModal">
+                                <i class="bi bi-upload"></i> Import Holdings
+                            </button>
+                            <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#copyHoldingsModal">
+                                <i class="bi bi-files"></i> Copy from Previous Month
+                            </button>
+                            <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editHoldingsModal">
+                                <i class="bi bi-pencil-square"></i> Edit Holdings
+                            </button>
+                            <a href="{{ url_for('portfolio_overview') }}" class="btn btn-outline-success">
+                                <i class="bi bi-pie-chart"></i> View Full Portfolio
+                            </a>
+                            <a href="{{ url_for('demat_accounts') }}" class="btn btn-outline-info">
+                                <i class="bi bi-briefcase"></i> Manage Demat Accounts
+                            </a>
+                            <a href="#" class="btn btn-outline-danger">
+                                <i class="bi bi-trash"></i> Delete Fund
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Month Selector -->
+        <div class="card mb-4">
+            <div class="card-header bg-secondary text-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Holdings</h5>
+                    <div>
+                        <div class="mb-3">
+                            <label for="month" class="form-label">Select Month</label>
+                            <div class="input-group">
+                                <select class="form-select" id="month" name="month" onchange="window.location.href='{{ url_for('view_fund', fund_id=fund.id) }}?month=' + this.value">
+                                    {% for month in months %}
+                                        <option value="{{ month.month_year }}" {% if month.month_year == selected_month %}selected{% endif %}>
+                                            {{ month.month_year }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                                {% if selected_month %}
+                                    <a href="{{ url_for('delete_month_holdings', fund_id=fund.id, month_year=selected_month) }}" 
+                                       class="btn btn-danger"
+                                       onclick="return confirm('Are you sure you want to delete all holdings for {{ selected_month }}? This action cannot be undone.')">
+                                        <i class="bi bi-trash"></i> Delete Month
+                                    </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Holdings and Sector Data -->
+        <div class="row">
+            <!-- Holdings Table -->
+            <div class="col-md-7">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Fund Holdings - {{ selected_month or 'No data' }}</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if holdings %}
+                            <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                                <table class="table table-striped table-hover">
+                                    <thead class="table-light sticky-top">
+                                        <tr>
+                                            <th>Company</th>
+                                            <th>Sector</th>
+                                            <th class="text-end">Percentage</th>
+                                            <th class="text-end">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for holding in holdings %}
+                                            <tr>
+                                                <td>{{ holding.company_name }}</td>
+                                                <td>{{ holding.sector }}</td>
+                                                <td class="text-end">{{ "%.2f"|format(holding.percentage) }}%</td>
+                                                <td class="text-end">
+                                                    <a href="{{ url_for('delete_holding', holding_id=holding.id) }}" 
+                                                    class="btn btn-sm btn-outline-danger"
+                                                    onclick="return confirm('Are you sure you want to delete this holding?')">
+                                                        <i class="bi bi-trash"></i>
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <div class="alert alert-info">
+                                {% if selected_month %}
+                                    No holdings data available for {{ selected_month }}. Add holdings using the form.
+                                {% else %}
+                                    No holdings data available. Add a month's holdings to see them here.
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sector Chart -->
+            <div class="col-md-5">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">Sector Allocation</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if sectors %}
+                            <canvas id="sectorChart" height="300"></canvas>
+                            <div class="mt-3">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Sector</th>
+                                            <th class="text-end">Allocation</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for sector in sectors %}
+                                            <tr>
+                                                <td>{{ sector.sector }}</td>
+                                                <td class="text-end">{{ "%.2f"|format(sector.total) }}%</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <div class="alert alert-info">
+                                No sector data available for the selected month.
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Holding Modal -->
+    <div class="modal fade" id="addHoldingModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Holding</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form action="{{ url_for('add_holding', fund_id=fund.id) }}" method="POST">
+                        <div class="mb-3">
+                            <label for="month_year" class="form-label">Month (YYYY-MM)</label>
+                            <input type="text" class="form-control" id="month_year" name="month_year" 
+                                  value="{{ selected_month or '' }}" placeholder="2023-01" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="company_name" class="form-label">Company Name</label>
+                            <input type="text" class="form-control" id="company_name" name="company_name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="sector" class="form-label">Sector</label>
+                            <select class="form-select" id="sector" name="sector" required>
+                                <option value="">Select Sector</option>
+                                <option value="Auto">Auto</option>
+                                <option value="Banks">Banks</option>
+                                <option value="Consumer Goods">Consumer Goods</option>
+                                <option value="Financial Services">Financial Services</option>
+                                <option value="Healthcare">Healthcare</option>
+                                <option value="IT">IT</option>
+                                <option value="Metals">Metals</option>
+                                <option value="Oil & Gas">Oil & Gas</option>
+                                <option value="Pharma">Pharma</option>
+                                <option value="Real Estate">Real Estate</option>
+                                <option value="Telecom">Telecom</option>
+                                <option value="Others">Others</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="percentage" class="form-label">Percentage</label>
+                            <input type="number" step="0.01" class="form-control" id="percentage" name="percentage" required>
+                            <div class="form-text">Enter the percentage weight (e.g., 5.25 for 5.25%)</div>
+                        </div>
+                        <div class="text-end">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Add Holding</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Holdings Modal -->
+    <div class="modal fade" id="importHoldingsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Import Holdings</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form action="{{ url_for('import_holdings', fund_id=fund.id) }}" method="POST" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="month_year" class="form-label">Month (YYYY-MM)</label>
+                            <input type="text" class="form-control" id="month_year" name="month_year" 
+                                  value="{{ selected_month or '' }}" placeholder="2023-01" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="holdings_file" class="form-label">Import File</label>
+                            <input type="file" class="form-control" id="holdings_file" name="holdings_file" required>
+                            <div class="form-text">
+                                Upload a CSV or Excel file with these columns: company_name, sector, percentage
+                            </div>
+                        </div>
+                        <div class="alert alert-info">
+                            <h6>File Format:</h6>
+                            <p class="mb-1">The file should have the following columns:</p>
+                            <ul class="mb-0">
+                                <li><strong>company_name</strong> - Name of the company</li>
+                                <li><strong>sector</strong> - Sector of the company (optional)</li>
+                                <li><strong>percentage</strong> - Percentage holding (e.g., 5.25)</li>
+                            </ul>
+                        </div>
+                        <div class="text-end">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Import</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Copy Holdings Modal -->
+    <div class="modal fade" id="copyHoldingsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Copy Holdings to New Month</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form action="{{ url_for('copy_holdings', fund_id=fund.id) }}" method="POST">
+                        <div class="mb-3">
+                            <label for="source_month" class="form-label">Source Month</label>
+                            <select class="form-select" id="source_month" name="source_month" required>
+                                <option value="">Select Source Month</option>
+                                {% for month in months %}
+                                    <option value="{{ month.month_year }}">{{ month.month_year }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">This is the month you want to copy holdings from</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="target_month" class="form-label">Target Month (YYYY-MM)</label>
+                            <input type="text" class="form-control" id="target_month" name="target_month" 
+                                   placeholder="2023-04" required>
+                            <div class="form-text">This is the new month you want to copy holdings to</div>
+                        </div>
+                        <div class="alert alert-info">
+                            <strong>Note:</strong> This will create a new month with exact copies of all holdings from the source month.
+                            You can then edit individual holdings as needed.
+                        </div>
+                        <div class="text-end">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Copy Holdings</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Holdings Modal -->
+    <div class="modal fade" id="editHoldingsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit All Holdings</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    {% if holdings %}
+                        <form action="{{ url_for('edit_holdings', fund_id=fund.id) }}" method="POST">
+                            <input type="hidden" name="month_year" value="{{ selected_month }}">
+                            
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Company</th>
+                                            <th>Sector</th>
+                                            <th>Current %</th>
+                                            <th>New %</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for holding in holdings %}
+                                            <tr>
+                                                <td>{{ holding.company_name }}</td>
+                                                <td>{{ holding.sector }}</td>
+                                                <td>{{ "%.2f"|format(holding.percentage) }}%</td>
+                                                <td>
+                                                    <input type="hidden" name="holding_id" value="{{ holding.id }}">
+                                                    <input type="number" step="0.01" class="form-control form-control-sm" 
+                                                           name="percentage" value="{{ "%.2f"|format(holding.percentage) }}" required>
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            <div class="alert alert-info">
+                                <strong>Note:</strong> Update the percentages for all holdings. Make sure the total adds up to 100%.
+                                <div id="totalPercentage" class="mt-2 fw-bold">Total: 0%</div>
+                            </div>
+                            
+                            <div class="text-end">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-primary">Save Changes</button>
+                            </div>
+                        </form>
+                    {% else %}
+                        <div class="alert alert-warning">
+                            No holdings available for editing. Please add holdings first.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Function to handle month change
+        function changeMonth(month) {
+            window.location.href = "{{ url_for('view_fund', fund_id=fund.id) }}" + "?month=" + month;
+        }
+        
+        // Function to calculate total percentage in edit holdings modal
+        document.addEventListener('DOMContentLoaded', function() {
+            const percentageInputs = document.querySelectorAll('#editHoldingsModal input[name="percentage"]');
+            const totalElement = document.getElementById('totalPercentage');
+            
+            function updateTotal() {
+                let total = 0;
+                percentageInputs.forEach(input => {
+                    total += parseFloat(input.value || 0);
+                });
+                
+                totalElement.textContent = `Total: ${total.toFixed(2)}%`;
+                
+                // Highlight if not 100%
+                if (Math.abs(total - 100) > 0.1) {
+                    totalElement.classList.add('text-danger');
+                } else {
+                    totalElement.classList.remove('text-danger');
+                }
+            }
+            
+            // Add event listeners to all percentage inputs
+            percentageInputs.forEach(input => {
+                input.addEventListener('input', updateTotal);
+            });
+            
+            // Calculate initial total
+            updateTotal();
+        });
+        
+        // Sector chart
+        {% if sectors %}
+            const ctx = document.getElementById('sectorChart').getContext('2d');
+            
+            // Extract data from sectors
+            const sectorLabels = [{% for sector in sectors %}'{{ sector.sector }}',{% endfor %}];
+            const sectorValues = [{% for sector in sectors %}{{ sector.total }},{% endfor %}];
+            
+            // Generate random colors
+            const getRandomColor = () => {
+                const letters = '0123456789ABCDEF';
+                let color = '#';
+                for (let i = 0; i < 6; i++) {
+                    color += letters[Math.floor(Math.random() * 16)];
+                }
+                return color;
+            };
+            
+            const backgroundColors = sectorLabels.map(() => getRandomColor());
+            
+            new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: sectorLabels,
+                    datasets: [{
+                        data: sectorValues,
+                        backgroundColor: backgroundColors,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                boxWidth: 15
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed || 0;
+                                    return `${label}: ${value.toFixed(2)}%`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        {% endif %}
+    </script>
+</body>
+</html> 

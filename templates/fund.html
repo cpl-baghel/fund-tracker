@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ current_fund[1] }} - Holdings</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .card {
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .card-header {
+            background-color: #007bff;
+            color: white;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            border-color: #007bff;
+        }
+        .btn-primary:hover {
+            background-color: #0056b3;
+            border-color: #0056b3;
+        }
+        .holdings-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .holding-item {
+            border-left: 4px solid #007bff;
+            margin-bottom: 10px;
+            padding: 10px;
+            background-color: white;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">Mutual Fund Holdings Tracker</a>
+            <a href="/" class="btn btn-outline-light">Back to Funds</a>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Add New Holdings</h5>
+                    </div>
+                    <div class="card-body">
+                        <form action="{{ url_for('add_holdings_route', fund_id=current_fund[0]) }}" method="POST" id="holdingsForm">
+                            <div class="mb-3">
+                                <label for="num_holdings" class="form-label">Number of Holdings</label>
+                                <input type="number" class="form-control" id="num_holdings" name="num_holdings" min="1" max="20" value="1" required>
+                            </div>
+                            <div id="holdingsContainer">
+                                <div class="holding-inputs">
+                                    <h6>Holding 1</h6>
+                                    <div class="mb-3">
+                                        <label class="form-label">Company Name</label>
+                                        <input type="text" class="form-control" name="company_0" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Sector</label>
+                                        <input type="text" class="form-control" name="sector_0" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Percentage</label>
+                                        <input type="number" class="form-control" name="percentage_0" step="0.01" min="0" max="100" required>
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Add Holdings</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">{{ current_fund[1] }} - Holdings</h5>
+                    </div>
+                    <div class="card-body holdings-list">
+                        {% if holdings %}
+                            {% for holding in holdings %}
+                                <div class="holding-item">
+                                    <div class="d-flex justify-content-between">
+                                        <h6 class="mb-1">{{ holding[2] }}</h6>
+                                        <small>{{ holding[5] }}</small>
+                                    </div>
+                                    <p class="mb-1">Sector: {{ holding[3] }}</p>
+                                    <p class="mb-0">Percentage: {{ holding[4] }}%</p>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="text-muted">No holdings added yet. Add your first holding above!</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.getElementById('num_holdings').addEventListener('change', function() {
+            const container = document.getElementById('holdingsContainer');
+            const numHoldings = parseInt(this.value);
+            container.innerHTML = '';
+            
+            for (let i = 0; i < numHoldings; i++) {
+                const holdingDiv = document.createElement('div');
+                holdingDiv.className = 'holding-inputs';
+                holdingDiv.innerHTML = `
+                    <h6>Holding ${i + 1}</h6>
+                    <div class="mb-3">
+                        <label class="form-label">Company Name</label>
+                        <input type="text" class="form-control" name="company_${i}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Sector</label>
+                        <input type="text" class="form-control" name="sector_${i}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Percentage</label>
+                        <input type="number" class="form-control" name="percentage_${i}" step="0.01" min="0" max="100" required>
+                    </div>
+                `;
+                container.appendChild(holdingDiv);
+            }
+        });
+    </script>
+</body>
+</html> 
